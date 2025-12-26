@@ -12,9 +12,9 @@ export async function POST(req: Request) {
     const body = await req.json();
     const { companyName, industry, context, options } = body;
 
-    // Use Flash for speed, but High Temperature for creative Game Theory
+    
     const model = genAI.getGenerativeModel({ 
-        model: "gemini-2.5-flash",
+        model: "gemini-3-flash-preview",
         generationConfig: { responseMimeType: "application/json", temperature: 0.8 } 
     });
 
