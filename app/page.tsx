@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { useReducer, useState } from "react";
+import { AnimatePresence } from "framer-motion";
 import { 
   useNodesState, 
   useEdgesState, 
@@ -9,110 +9,39 @@ import {
   type Edge 
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { getLayoutedElements } from "@/lib/layout"; 
-import { Activity, Swords, X, Calendar, AlertTriangle, DollarSign, Scale, Globe, Award } from "lucide-react";
+import { Activity } from "lucide-react";
 import Input from "@/components/Input";
 import Syncing from "@/components/Syncing";
 import Dashboard from "@/components/Dashboard";
 import { BsGithub, BsYoutube } from "react-icons/bs";
 import Link from "next/link";
+import ScenarioModal from "@/components/ScenarioModal";
+import { ReducerAction, ReducerStateType, Scenario } from "@/types/base";
 
-// --- TYPES ---
-interface FlowData { nodes: Node[]; edges: Edge[]; }
-
-export interface Scenario {
-  id: string;
-  title: string;
-  outcome_3m: string;
-  outcome_12m: string;
-  risk_score: number;
-  competitor_reaction: string;
-  risk_matrix: {
-    financial: "Low" | "Medium" | "High";
-    legal: "Low" | "Medium" | "High";
-    market: "Low" | "Medium" | "High";
-    brand: "Low" | "Medium" | "High";
-  };
+const initialState: ReducerStateType = {
+  step: "input",
+  result: null,
+  log: ""
 }
 
-export interface TwinResult {
-  twin_status: string;
-  competitor_profile: {
-    name: string;
-    archetype: string;
-    likely_counter_move: string;
-    threat_level: string;
-  };
-  scenarios: Scenario[];
-  recommended_id: string;
-  implementation_flowchart: FlowData;
-}
+const reducer = (state: ReducerStateType, action: ReducerAction): ReducerStateType => {
+  switch(action.type) {
+    case "SET_STEP":
+      return { ...state, step: action.payload };
+    case "SET_RESULT":
+      return { ...state, result: action.payload };
+    case "SET_LOG":
+      return { ...state, log: action.payload };
+    default:
+      return state;
+  }
+};
 
 export default function LivingStrategicTwin() {
-  const [step, setStep] = useState<"input" | "syncing" | "dashboard">("input");
-  const [formData, setFormData] = useState({ companyName: "", context: "", options: "" });
-  const [result, setResult] = useState<TwinResult | null>(null);
+  const [{ step, result, log }, setState] = useReducer(reducer, initialState)
   const [selectedScenario, setSelectedScenario] = useState<Scenario | null>(null);
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
-  const [log, setLog] = useState("");
-
-  const handleSimulate = async () => {
-    setStep("syncing");
-    
-    const logs = ["Connecting to Market API...", "Ingesting Competitor 10-K Filings...", "Calibrating Game Theory Weights...", "Building Digital Twin Model..."];
-    let i = 0;
-    const interval = setInterval(() => { setLog(logs[i++ % logs.length]); }, 1200);
-
-    try {
-      const res = await fetch("/api/simulate", {
-        method: "POST",
-        body: JSON.stringify(formData),
-      });
-      const data = await res.json();
-      
-      if (!res.ok) throw new Error(data.error);
-
-      const initialNodes: Node[] = data.implementation_flowchart.nodes.map((n: any) => ({ 
-        id: n.id,
-        position: { x: 0, y: 0 }, 
-        data: { label: n.label },
-        type: n.type || 'default',
-        style: { 
-          background: '#0f172a', 
-          color: '#fff', 
-          border: '1px solid #334155', 
-          borderRadius: '8px', 
-          padding: '10px', 
-          fontSize: '12px',
-          width: 150 
-        } 
-      }));
-
-      const initialEdges: Edge[] = data.implementation_flowchart.edges.map((e: Edge) => ({ 
-        id: `e${e.source}-${e.target}`,
-        source: e.source, 
-        target: e.target, 
-        animated: true, 
-        label: e.label,
-        style: { stroke: '#06b6d4' },
-        labelStyle: { fill: '#94a3b8', fontSize: 10 }
-      }));
-
-      const { nodes: layoutedNodes, edges: layoutedEdges } = getLayoutedElements(initialNodes, initialEdges);
-
-      setNodes(layoutedNodes);
-      setEdges(layoutedEdges);
-      setResult(data);
-      setStep("dashboard");
-    } catch (e) {
-      console.error(e);
-      alert("Twin Sync Failed. Check console for details.");
-      setStep("input");
-    } finally {
-      clearInterval(interval);
-    }
-  };
 
   return (
     <div className="min-h-screen bg-black text-slate-200 font-sans selection:bg-cyan-500/30">
@@ -159,7 +88,15 @@ export default function LivingStrategicTwin() {
         <AnimatePresence mode="wait">
           
           {/* INPUT MODE */}
-          {step === "input" && <Input setFormData={setFormData} formData={formData} handleSimulate={handleSimulate} />}
+          {
+            step === "input" && (
+              <Input
+                setState={setState}
+                setNodes={setNodes}
+                setEdges={setEdges}
+              />
+            )
+          }
 
           {/* SYNCING MODE */}
           {step === "syncing" && <Syncing log={log} />}
@@ -172,116 +109,20 @@ export default function LivingStrategicTwin() {
               edges={edges}
               onNodesChange={onNodesChange}
               onEdgesChange={onEdgesChange}
-              setStep={setStep}
+              setStep={
+                (payload: ReducerStateType['step']) => setState({ type: "SET_STEP", payload })
+              }
               setSelectedScenario={setSelectedScenario}
             />
           )}
         </AnimatePresence>
 
         {/* --- SCENARIO DETAIL MODAL --- */}
-        <AnimatePresence>
-          {selectedScenario && (
-            <motion.div 
-              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              onClick={() => setSelectedScenario(null)}
-              className="fixed inset-0 z-100 bg-black/60 backdrop-blur-md flex items-center justify-center p-4"
-            >
-              <motion.div 
-                initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
-                onClick={(e) => e.stopPropagation()}
-                className="bg-[#0f172a] border border-slate-700 w-full max-w-3xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
-              >
-                
-                {/* Modal Header */}
-                <div className="p-6 border-b border-slate-800 bg-slate-900/50 flex justify-between items-start">
-                  <div>
-                    <div className="flex items-center gap-3 mb-2">
-                        <span className="text-xs font-mono text-cyan-400 bg-cyan-950/50 px-2 py-1 rounded">SCENARIO {selectedScenario.id}</span>
-                    </div>
-                    <h2 className="text-2xl font-bold text-white">{selectedScenario.title}</h2>
-                  </div>
-                  <button onClick={() => setSelectedScenario(null)} className="p-2 hover:bg-slate-800 rounded-full transition text-slate-400 hover:text-white">
-                    <X className="w-6 h-6" />
-                  </button>
-                </div>
-
-                {/* Modal Body */}
-                <div className="p-8 overflow-y-auto space-y-8">
-                  
-                  {/* --- THE VISUAL RISK HEATMAP --- */}
-                  {selectedScenario.risk_matrix && (
-                    <div>
-                      <div className="flex items-center gap-2 text-slate-400 font-bold text-sm mb-4 uppercase tracking-wider">
-                        <AlertTriangle className="w-4 h-4" /> Comprehensive Risk Matrix
-                      </div>
-                      <div className="grid grid-cols-2 gap-4">
-                        <RiskCard icon={<DollarSign className="w-5 h-5"/>} label="Financial" level={selectedScenario.risk_matrix.financial} />
-                        <RiskCard icon={<Scale className="w-5 h-5"/>} label="Legal" level={selectedScenario.risk_matrix.legal} />
-                        <RiskCard icon={<Globe className="w-5 h-5"/>} label="Market" level={selectedScenario.risk_matrix.market} />
-                        <RiskCard icon={<Award className="w-5 h-5"/>} label="Brand" level={selectedScenario.risk_matrix.brand} />
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Competitor War Game */}
-                  <div className="bg-red-950/20 border border-red-500/20 rounded-xl p-5">
-                    <div className="flex items-center gap-2 text-red-400 font-bold text-sm mb-3 uppercase">
-                      <Swords className="w-4 h-4" /> Game Theory Analysis
-                    </div>
-                    <p className="text-slate-200 leading-relaxed">{selectedScenario.competitor_reaction}</p>
-                  </div>
-
-                  {/* Timeline */}
-                  <div>
-                    <div className="flex items-center gap-2 text-slate-400 font-bold text-sm mb-4 uppercase">
-                      <Calendar className="w-4 h-4" /> Outcomes
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="bg-slate-900 p-4 rounded-lg border border-slate-800">
-                        <span className="text-xs text-cyan-500 font-bold block mb-2">3 MONTHS</span>
-                        <p className="text-sm text-slate-300">{selectedScenario.outcome_3m}</p>
-                      </div>
-                      <div className="bg-slate-900 p-4 rounded-lg border border-slate-800">
-                        <span className="text-xs text-purple-500 font-bold block mb-2">12 MONTHS</span>
-                        <p className="text-sm text-slate-300">{selectedScenario.outcome_12m}</p>
-                      </div>
-                    </div>
-                  </div>
-
-                </div>
-              </motion.div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+        <ScenarioModal
+          selectedScenario={selectedScenario}
+          setSelectedScenario={setSelectedScenario}
+        />
       </main>
     </div>
-  );
-}
-
-// --- HELPER COMPONENTS ---
-
-export function getRiskColor(level: string) {
-  switch(level) {
-    case "High": return "bg-red-500 shadow-[0_0_15px_rgba(239,68,68,0.4)]";
-    case "Medium": return "bg-orange-500 shadow-[0_0_15px_rgba(249,115,22,0.4)]";
-    case "Low": return "bg-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.4)]";
-    default: return "bg-slate-500";
-  }
-}
-
-function RiskCard({ icon, label, level }: { icon: any, label: string, level: string }) {
-  const colorClass = getRiskColor(level);
-  
-  return (
-      <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 flex items-center justify-between group hover:border-slate-700 transition">
-          <div className="flex items-center gap-3">
-              <div className={`p-2 rounded-lg bg-slate-800 text-slate-300`}>{icon}</div>
-              <span className="font-medium text-slate-200">{label}</span>
-          </div>
-          <div className="flex items-center gap-3">
-              <span className="text-xs text-slate-500 uppercase font-bold">{level} Risk</span>
-              <div className={`w-3 h-3 rounded-full ${colorClass}`}></div>
-          </div>
-      </div>
   );
 }

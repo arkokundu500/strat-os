@@ -1,12 +1,13 @@
 'use client'
 
-import { getRiskColor, Scenario, TwinResult } from "@/app/page";
+import { getRiskColor } from "@/lib/utils";
+import { Scenario, TwinResult } from "@/types/base";
 import { ReactFlow, Background, Controls, Node, Edge, OnNodesChange, OnEdgesChange } from "@xyflow/react";
 import { motion } from "framer-motion";
 import { Swords, ShieldAlert, GitMerge, RefreshCw } from "lucide-react";
 
 type DashboardType = {
-	setStep: React.Dispatch<React.SetStateAction<"input" | "syncing" | "dashboard">>,
+	setStep: (payload: "input" | "syncing" | "dashboard") => void,
 	result: TwinResult
 	setSelectedScenario: React.Dispatch<React.SetStateAction<Scenario | null>>,
 	nodes: Node[],
@@ -38,7 +39,7 @@ export default function Dashboard({ setStep, result, setSelectedScenario, nodes,
 						</div>
 						<div className="bg-red-950/50 border border-red-500/20 p-3 rounded-lg">
 							<p className="text-xs text-red-400 mb-1">PREDICTED COUNTER-MOVE</p>
-							<p className="text-sm font-medium text-white">"{result.competitor_profile.likely_counter_move}"</p>
+							<p className="text-sm font-medium text-white">&quot;{result.competitor_profile.likely_counter_move}&quot;</p>
 						</div>
 						<div className="flex items-center gap-2 text-xs">
 								<ShieldAlert className="w-4 h-4 text-red-500" />
